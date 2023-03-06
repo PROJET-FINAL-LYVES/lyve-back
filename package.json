@@ -1,0 +1,11 @@
+{
+  "name": "lyve-back",
+  "version": "1.0.0",
+  "description": "projet web musical",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "author": "David Bea, Sam Montaudon , mathieu Briand, Patryk",
+  "license": "MIT"
+}
