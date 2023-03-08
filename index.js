@@ -3,6 +3,7 @@ require('dotenv').config();
 const express = require('express');
 const http = require('http');
 const { Server } = require('socket.io');
+const database = require('./database');
 
 const app = express();
 const port = process.env.APP_PORT;
