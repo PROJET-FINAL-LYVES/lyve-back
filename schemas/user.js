@@ -1,6 +1,6 @@
 const { Schema } = require( 'mongoose' );
 
-export const UserSchema = new Schema({
+const UserSchema = new Schema({
     username: {
         type: String,
         required: true

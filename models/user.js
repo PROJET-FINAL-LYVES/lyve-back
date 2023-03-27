@@ -24,6 +24,5 @@ class UserModel {
         this.initSchema();
         return mongoose.model('user');
     }
-}
 
-module.exports = UserModel;
+}
