@@ -1,32 +1,39 @@
 require('dotenv').config();
 
+// dependencies
+const mongoose = require("mongoose");
 const express = require('express');
 const http = require('http');
 const { Server } = require('socket.io');
+
+// initializations
 const app = express();
 const port = process.env.APP_PORT;
 const server = http.createServer(app);
 const io = new Server(server);
-const router = express.Router();
+
+// controllers
 const userController = require('./controllers/user');
 
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
+mongoose.connect(process.env.DATABASE_URI, { useNewUrlParser: true, useUnifiedTopology: true })
+    .then(() => {
+        console.log('Database connection successful');
+    })
+    .catch(err => {
+        console.error('Database connection error');
+    });
+
 app.get('/', (req, res) => {
     return res.json({ success: true });
 });
 
-// Route to handle user login
-app.post('/login', userController.login,(req, res) => {
-    res.redirect('/dashboard');
-});
-
-// Route to handle user registration
-app.post('/register', userController.register,(req, res) => {res.redirect('/login');});
-
-// Route to handle user logout
-app.get('/logout', userController.logout,(req, res) => {res.redirect('/login');});
+// USER ROUTES
+app.post('/login', userController.login);
+app.post('/register', userController.register);
+app.get('/logout', userController.logout);
 
 // Use the middleware function for protecting sensitive routes
 app.get('/dashboard', userController.requireAuth, (req, res) => {

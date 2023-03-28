@@ -1,38 +1,45 @@
-const UserModel  = require("../models/user");
+const UserService = require("../services/user");
 const bcrypt = require("bcrypt");
-const { SALT_ROUNDS } = require('../constants/app');
 
 class UserController {
-    constructor(service) {
-        this.service = service;
-    }
-
-    async create(req, res) {
-
-    }
     static async login(req, res) {
-        const { email, password } = req.body;
+        const { mail, password } = req.body;
 
-        const user = await UserModel.findOne({ email });
+        const user = await UserService.findUserByMail(mail);
         if (!user) {
-            return res.status(404).json({ message: 'User not found' });
+            return res.json({ success: false, message: 'Mail is not linked to an account' });
         }
+
         const isPasswordValid = await bcrypt.compare(password, user.password);
         if (!isPasswordValid) {
-            return res.status(401).json({ message: 'Invalid password' });
+            return res.json({ success: false, message: 'Invalid password' });
         }
-        req.session.userId = user._id;
-        res.redirect('/dashboard');
+
+        // TODO: update session
+        // req.session.userId = user._id;
+
+        return res.json({ success: true });
     }
+
     static async logout(req, res) {
         req.session.destroy();
         res.redirect('/login');
     }
+
     static async register(req, res) {
-        const { username, password, email, dob } = req.body;
-        const UserModel = new UserModel;
-        const user = await UserModel.createUser(username, password, email, dob);
+        const { username, mail, dob, password, password_confirm } = req.body;
+
+        // TODO: check unique mail + unique username
+
+        // check passwords match
+        if (password !== password_confirm) {
+            return res.json({ success: false, message: 'Passwords do not match.' });
         }
+
+        const user = await UserService.createUser({ username, mail, dob, password });
+        return res.json(user);
+    }
+
     static async requireAuth(req, res, next) {
         if (!req.session.userId) {
             return res.redirect('/login');

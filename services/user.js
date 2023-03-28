@@ -1,12 +1,13 @@
-const mongoose = require('mongoose');
+const User = require('../schemas/user');
 
 class UserService {
-    constructor(model) {
-        this.model = model;
+    static async createUser({ username, mail, dob, password }) {
+        const user = { username, mail, dob, password };
+        return await new User(user).save();
     }
 
-    async create(data) {
-
+    static async findUserByMail(mail) {
+        return await User.findOne({ mail }).exec();
     }
 }
 
