@@ -27,17 +27,40 @@ class UserController {
     }
 
     static async register(req, res) {
-        const { username, mail, dob, password, password_confirm } = req.body;
+        try {
+            const { username, mail, dob, password, password_confirm } = req.body;
+            // Validation des données du formulaire
+            if (!username || !mail || !dob || !password ) {
+                return res.status(400).json({ error: "Tous les champs sont obligatoires" });
+            }
 
-        // TODO: check unique mail + unique username
+            // Vérification du format de l'adresse e-mail
+            const emailRegex = /^\S+@\S+\.\S+$/;
+            if (!emailRegex.test(mail)) {
+                return res.status(400).json({ error: "Adresse e-mail invalide" });
+            }
 
-        // check passwords match
-        if (password !== password_confirm) {
-            return res.json({ success: false, message: 'Passwords do not match.' });
+            // check unique mail + unique username
+            const existingUserByEmail = await UserService.findUserByMail(mail);
+            if (existingUserByEmail) {
+                return res.json({ success: false, message: 'Email already in use.' });
+            }
+
+            const existingUserByUsername = await UserService.findUserByUsername(username);
+            if (existingUserByUsername) {
+                return res.json({ success: false, message: 'Username already in use.' });
+            }
+
+            // check passwords match
+            if (password !== password_confirm) {
+                return res.json({ success: false, message: 'Passwords do not match.' });
+            }
+
+            const user = await UserService.createUser({ username, mail, dob, password });
+            res.status(201).json({ user });
+        } catch (error) {
+            res.status(500).json({ error: error.message });
         }
-
-        const user = await UserService.createUser({ username, mail, dob, password });
-        return res.json(user);
     }
 
     static async requireAuth(req, res, next) {

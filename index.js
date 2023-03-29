@@ -14,8 +14,11 @@ const io = new Server(server);
 
 // controllers
 const userController = require('./controllers/user');
+var cors = require('cors')
 
 app.use(express.json());
+app.use(cors()) // Use this after the variable declaration
+
 app.use(express.urlencoded({ extended: true }));
 
 mongoose.connect(process.env.DATABASE_URI, { useNewUrlParser: true, useUnifiedTopology: true })

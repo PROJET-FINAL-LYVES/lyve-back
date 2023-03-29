@@ -17,12 +17,14 @@ class UserModel {
         mongoose.model('user', UserSchema);
     }
     getInstance() {
-        this.initSchema();
-        return mongoose.model('user');
+        if (!mongoose.models.User) {
+            this.initSchema();
+        }
+        return mongoose.model('User');
     }
-    async createUser(username, password, mail, dob) {
+    async createUser({ username, password, mail, dob }) {
         const UserModel = this.getInstance();
-        const user = new UserModel({ username, password ,mail ,dob});
+        const user = new UserModel({ username, password, mail, dob });
         try {
             await user.save();
             console.log('New user created successfully');

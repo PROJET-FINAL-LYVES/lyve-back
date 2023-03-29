@@ -6,6 +6,10 @@ class UserService {
         return await new User(user).save();
     }
 
+    static async findUserByUsername(username) {
+        return await User.findOne({ username }).exec();
+    }
+    
     static async findUserByMail(mail) {
         return await User.findOne({ mail }).exec();
     }
