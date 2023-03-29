@@ -1,6 +1,18 @@
 const { Schema } = require( 'mongoose' );
 
 export const UserSchema = new Schema({
+    google:{
+        id: {
+            type: String,
+        },
+        name: {
+            type: String,
+        },
+        email: {
+            type: String,
+        },
+
+    },
     username: {
         type: String,
         required: true
