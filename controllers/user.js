@@ -18,7 +18,7 @@ class UserController {
         // TODO: update session
         // req.session.userId = user._id;
 
-        return res.json({ success: true });
+        return res.json({ user: user});
     }
 
     static async logout(req, res) {
