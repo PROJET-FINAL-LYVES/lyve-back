@@ -5,12 +5,14 @@ const mongoose = require("mongoose");
 const express = require('express');
 const http = require('http');
 const { Server } = require('socket.io');
+const passport = require('passport');
 
 // initializations
 const app = express();
 const port = process.env.APP_PORT;
 const server = http.createServer(app);
 const io = new Server(server);
+require('./services/PasseportConfigServices')(passport);
 
 // controllers
 const userController = require('./controllers/user');
@@ -34,6 +36,11 @@ app.get('/', (req, res) => {
 app.post('/login', userController.login);
 app.post('/register', userController.register);
 app.get('/logout', userController.logout);
+app.get('/auth/google', passport.authenticate('google', { scope: ['profile', 'email'] }));
+app.get('/auth/google/callback', passport.authenticate('google', { failureRedirect: '/login' }), (req, res) => {
+    res.redirect('/dashboard');
+});
+
 
 // Use the middleware function for protecting sensitive routes
 app.get('/dashboard', userController.requireAuth, (req, res) => {

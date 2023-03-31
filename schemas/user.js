@@ -2,7 +2,8 @@ const mongoose = require('mongoose');
 const bcrypt = require("bcrypt");
 //const { SALT_ROUNDS } = require('../constants/app');
 
-export const UserSchema = new Schema({
+
+const UserSchema = new mongoose.Schema({
     google:{
         id: {
             type: String,
