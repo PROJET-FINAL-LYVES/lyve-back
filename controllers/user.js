@@ -18,7 +18,7 @@ class UserController {
         // TODO: update session
         // req.session.userId = user._id;
 
-        return res.json({ success: true });
+        return res.json({ success: true, user: user.toDisplay() });
     }
 
     static async logout(req, res) {
@@ -27,17 +27,26 @@ class UserController {
     }
 
     static async register(req, res) {
-        const { username, mail, dob, password, password_confirm } = req.body;
+        const {
+            username,
+            mail,
+            gender,
+            dob,
+            newsletter,
+            data_sharing,
+            password,
+            password_confirm
+        } = req.body;
 
-        // TODO: check unique mail + unique username
+        const role = req.body.is_artist ? 'artist' : 'user';
 
         // check passwords match
         if (password !== password_confirm) {
             return res.json({ success: false, message: 'Passwords do not match.' });
         }
 
-        const user = await UserService.createUser({ username, mail, dob, password });
-        return res.json(user);
+        const response = await UserService.createUser({ username, mail, gender, dob, role, newsletter, data_sharing, password });
+        return res.json(response);
     }
 
     static async requireAuth(req, res, next) {

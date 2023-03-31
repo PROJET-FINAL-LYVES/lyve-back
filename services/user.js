@@ -1,9 +1,15 @@
 const User = require('../schemas/user');
+const { handleErrorMessages } = require('../helpers')
 
 class UserService {
-    static async createUser({ username, mail, dob, password }) {
-        const user = { username, mail, dob, password };
-        return await new User(user).save();
+    static async createUser(userInfo) {
+        try {
+            const user = await new User(userInfo).save();
+            return { success: true, user: user.toDisplay() };
+        } catch (err) {
+            const errorFields = ['username', 'mail', 'dob', 'password'];
+            return { success: false, message: handleErrorMessages(err.errors, errorFields) };
+        }
     }
 
     static async findUserByMail(mail) {
