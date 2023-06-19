@@ -10,11 +10,20 @@ const { Server } = require('socket.io');
 const app = express();
 const port = process.env.APP_PORT;
 const server = http.createServer(app);
-const io = new Server(server);
+
+const io = new Server(server, {
+    cors: {
+        origin: "http://localhost:3000", // specify the domain of the client
+        methods: ["GET", "POST"]
+    }
+});
 
 // controllers
 const userController = require('./controllers/user');
+const cors = require('cors');
 
+
+app.use(cors());
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
@@ -41,15 +50,38 @@ app.get('/dashboard', userController.requireAuth, (req, res) => {
 });
 
 
+let videoStartTime = null;
+
+let currentVideoId = null;
+
+io.on('connection', (socket) => {
+    console.log('a user connected');
+
+    if (currentVideoId) {
+        // send the current video and start time to the newly connected client
+        socket.emit('new video', { videoId: currentVideoId, startTime: videoStartTime });
+    }
+
+    // listen for the 'start video' event
+    socket.on('start video', (newVideoId) => {
+        currentVideoId = newVideoId;
+        videoStartTime = Date.now();
+
+        // emit the 'new video' event to all connected clients
+        io.emit('new video', { videoId: currentVideoId, startTime: videoStartTime });
+    });
 
 
-io.on('connection', socket => {
-    console.log('connection');
+    socket.on('chat message', (msg) => {
+        console.log('message: ' + msg);
+        io.emit('chat message', msg);
+    });
+
+    socket.on('disconnect', () => {
+        console.log('user disconnected');
+    });
 });
 
-io.on('disconnect', socket =>{
-   console.log('disconnect');
-});
 
 server.listen(port, () => {
     console.log(`App listening on port ${port}`);
