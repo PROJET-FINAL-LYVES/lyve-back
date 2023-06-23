@@ -6,6 +6,9 @@ const express = require('express');
 const http = require('http');
 const { Server } = require('socket.io');
 
+// constants
+const { START_VIDEO_EVENT, MESSAGE_EVENT, ADD_VIDEO_EVENT } = require('./constants/socket');
+
 // initializations
 const app = express();
 const port = process.env.APP_PORT;
@@ -20,6 +23,7 @@ const io = new Server(server, {
 
 // controllers
 const userController = require('./controllers/user');
+const videoController = require('./controllers/video');
 const cors = require('cors');
 
 
@@ -63,7 +67,7 @@ io.on('connection', (socket) => {
     }
 
     // listen for the 'start video' event
-    socket.on('start video', (newVideoId) => {
+    socket.on(START_VIDEO_EVENT, (newVideoId) => {
         currentVideoId = newVideoId;
         videoStartTime = Date.now();
 
@@ -72,10 +76,12 @@ io.on('connection', (socket) => {
     });
 
 
-    socket.on('chat message', (msg) => {
+    socket.on(MESSAGE_EVENT, (msg) => {
         console.log('message: ' + msg);
-        io.emit('chat message', msg);
+        io.emit(MESSAGE_EVENT, msg);
     });
+
+    socket.on(ADD_VIDEO_EVENT, videoController.addVideoToPlaylist);
 
     socket.on('disconnect', () => {
         console.log('user disconnected');
