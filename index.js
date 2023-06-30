@@ -54,34 +54,24 @@ app.get('/dashboard', userController.requireAuth, (req, res) => {
 });
 
 
-let videoStartTime = null;
-
-let currentVideoId = null;
-
 io.on('connection', (socket) => {
-    console.log('a user connected');
-
-    if (currentVideoId) {
-        // send the current video and start time to the newly connected client
-        socket.emit('new video', { videoId: currentVideoId, startTime: videoStartTime });
-    }
-
-    // listen for the 'start video' event
-    socket.on(START_VIDEO_EVENT, (newVideoId) => {
-        currentVideoId = newVideoId;
-        videoStartTime = Date.now();
-
-        // emit the 'new video' event to all connected clients
-        io.emit('new video', { videoId: currentVideoId, startTime: videoStartTime });
+    socket.on('join room', (roomId) => {
+        console.log('A user joined room ' + roomId + '!');
+        socket.join(roomId);
     });
 
-
-    socket.on(MESSAGE_EVENT, (msg) => {
-        console.log('message: ' + msg);
-        io.emit(MESSAGE_EVENT, msg);
+    socket.on('chat message', (roomId, msg) => {
+        io.to(roomId).emit('chat message', msg);
     });
-
-    socket.on(ADD_VIDEO_EVENT, videoController.addVideoToPlaylist);
+   
+    socket.on('video action', (roomId, action) => {
+        console.log(roomId, action);
+        if (action.type === 'play') {
+            io.to(roomId).emit('video action', action);
+        } else if (action.type === 'pause') {
+            io.to(roomId).emit('video action', action);
+        }
+    });
 
     socket.on('disconnect', () => {
         console.log('user disconnected');
