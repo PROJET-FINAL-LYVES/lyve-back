@@ -53,25 +53,41 @@ app.get('/dashboard', userController.requireAuth, (req, res) => {
     res.render('dashboard');
 });
 
+const hosts = {};
 
 io.on('connection', (socket) => {
     socket.on('join room', (roomId) => {
         console.log('A user joined room ' + roomId + '!');
         socket.join(roomId);
+
+        // Si la room n'a pas encore d'hôte, cette socket devient l'hôte
+        if (!hosts[roomId]) {
+            hosts[roomId] = socket.id;
+            console.log('Host of room ' + roomId + ' is ' + socket.id);
+        }
     });
 
     socket.on('chat message', (roomId, msg) => {
         io.to(roomId).emit('chat message', msg);
     });
-   
+
     socket.on('video action', (roomId, action) => {
-        console.log(roomId, action);
-        if (action.type === 'play') {
-            io.to(roomId).emit('video action', action);
-        } else if (action.type === 'pause') {
-            io.to(roomId).emit('video action', action);
+        const currentTime = action.time;
+        if (socket.id === hosts[roomId]) {
+            if (action.type === 'play') {
+                action.time = currentTime;
+                console.log('Received video action: ', action);
+                socket.broadcast.to(roomId).emit('video action', action, currentTime);
+            } else if (action.type === 'pause') {
+                action.time = currentTime;
+                console.log('Received video action: ', action);
+                socket.broadcast.to(roomId).emit('video action', action, currentTime);
+            }
         }
     });
+
+
+
 
     socket.on('disconnect', () => {
         console.log('user disconnected');
