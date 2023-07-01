@@ -26,7 +26,6 @@ const userController = require('./controllers/user');
 const videoController = require('./controllers/video');
 const cors = require('cors');
 
-
 app.use(cors());
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
@@ -56,11 +55,10 @@ app.get('/dashboard', userController.requireAuth, (req, res) => {
 const hosts = {};
 const rooms = {};
 
-
 io.on('connection', (socket) => {
     socket.on('join room', (roomId) => {
-        console.log('A user joined room ' + roomId + '!');
         socket.join(roomId);
+        console.log('A user joined room ' + roomId + '!');
 
         // Si la room n'a pas encore de liste de sockets, on la crée
         if (!rooms[roomId]) {
@@ -78,6 +76,8 @@ io.on('connection', (socket) => {
             hosts[roomId] = rooms[roomId][0];
             console.log('Host of room ' + roomId + ' is ' + hosts[roomId]);
         }
+
+        socket.emit('host status', socket.id === hosts[roomId]);
     });
 
     socket.on('chat message', (roomId, msg) => {
@@ -99,8 +99,6 @@ io.on('connection', (socket) => {
         }
     });
 
-
-
     socket.on('disconnect', () => {
         console.log('user disconnected');
         // Pour chaque room
@@ -113,14 +111,16 @@ io.on('connection', (socket) => {
 
                 // Si la socket était l'hôte, on attribue l'hôte à la prochaine socket dans la liste
                 if (hosts[roomId] === socket.id) {
-                    console.log('Host of room ' + roomId + ' is now' + rooms[roomId][0]);
+                    console.log('Host of room ' + roomId + ' is now ' + rooms[roomId][0]);
                     hosts[roomId] = rooms[roomId][0];
+
+                    // Send host status update to the new host
+                    io.to(hosts[roomId]).emit('host status', true);
                 }
             }
         }
     });
 });
-
 
 server.listen(port, () => {
     console.log(`App listening on port ${port}`);
