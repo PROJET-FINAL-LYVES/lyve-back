@@ -54,16 +54,29 @@ app.get('/dashboard', userController.requireAuth, (req, res) => {
 });
 
 const hosts = {};
+const rooms = {};
+
 
 io.on('connection', (socket) => {
     socket.on('join room', (roomId) => {
         console.log('A user joined room ' + roomId + '!');
         socket.join(roomId);
 
-        // Si la room n'a pas encore d'hôte, cette socket devient l'hôte
+        // Si la room n'a pas encore de liste de sockets, on la crée
+        if (!rooms[roomId]) {
+            rooms[roomId] = [];
+        }
+
+        // On ajoute la nouvelle socket à la liste si elle n'y est pas déjà
+        if (!rooms[roomId].includes(socket.id)) {
+            rooms[roomId].push(socket.id);
+        }
+
+        console.log('Room ' + roomId + ' has sockets: ' + rooms[roomId]);
+        // Si la room n'a pas encore d'hôte, la première socket devient l'hôte
         if (!hosts[roomId]) {
-            hosts[roomId] = socket.id;
-            console.log('Host of room ' + roomId + ' is ' + socket.id);
+            hosts[roomId] = rooms[roomId][0];
+            console.log('Host of room ' + roomId + ' is ' + hosts[roomId]);
         }
     });
 
@@ -88,9 +101,23 @@ io.on('connection', (socket) => {
 
 
 
-
     socket.on('disconnect', () => {
         console.log('user disconnected');
+        // Pour chaque room
+        for (const roomId in rooms) {
+            // On trouve l'index de la socket dans la liste
+            const index = rooms[roomId].indexOf(socket.id);
+            if (index > -1) {
+                // On retire la socket de la liste
+                rooms[roomId].splice(index, 1);
+
+                // Si la socket était l'hôte, on attribue l'hôte à la prochaine socket dans la liste
+                if (hosts[roomId] === socket.id) {
+                    console.log('Host of room ' + roomId + ' is now' + rooms[roomId][0]);
+                    hosts[roomId] = rooms[roomId][0];
+                }
+            }
+        }
     });
 });
 
