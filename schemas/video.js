@@ -15,16 +15,13 @@ const VideoSchema = new mongoose.Schema({
     dislikes: { type: Number, default: 0 },
     user: {
         type: mongoose.Schema.Types.ObjectId,
-        ref: 'User'
+        ref: 'User',
+        required: [true, 'Invalid user']
     },
     playlist: {
         type: String, // TODO: foreign relation with ObjectId and playlist table ?
         default: 'default'
-    },
-    date: {
-        type: Date,
-        default: Date.now
     }
-});
+}, { timestamps: true });
 
 module.exports = Video = mongoose.model('Video', VideoSchema);
