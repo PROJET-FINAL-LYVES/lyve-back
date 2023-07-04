@@ -30,6 +30,6 @@ const RoomSchema = new mongoose.Schema({
             message: props => `Max people inside should not be more than 12!`
         }
     },
-}, { timestamps: { createdAt: 'created_at' } });
+}, { timestamps: true });
 
 module.exports = Room = mongoose.model('Room', RoomSchema);

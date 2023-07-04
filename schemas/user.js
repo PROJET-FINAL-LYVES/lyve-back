@@ -58,18 +58,20 @@ const UserSchema = new mongoose.Schema({
     lastLogin: {
         type: Date
     }
-}, { timestamps: true ,
-            methods: {
-                isAdmin: function() {
-                    return this.role === 'admin';
-                    },
-                toDisplay: function() {
-                    const { __v, _id, password, ...object } = this.toObject();
-                    const jwt = createJsonWebToken(object);
+}, {
+    timestamps: true,
+    methods: {
+        isAdmin: function() {
+            return this.role === 'admin';
+        },
 
-                    return { ...object, token: jwt };
-                    }
-            }
+        toDisplay: function() {
+            const { __v, _id, password, ...object } = this.toObject();
+            const jwt = createJsonWebToken(object);
+
+            return { ...object, token: jwt };
+        }
+    }
 });
 
 UserSchema.pre('save', async function(next) {
