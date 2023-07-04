@@ -4,6 +4,10 @@ const RoomSchema = new mongoose.Schema({
     name: {
         type: String,
         required: [true, 'Name cannot be empty'],
+        validator: function (name) {
+            return this.model('Room').findOne({name}).then(room => !room);
+        },
+        message: () => 'Room name already taken'
     },
     user: {
         type: mongoose.Schema.Types.ObjectId,
@@ -28,4 +32,4 @@ const RoomSchema = new mongoose.Schema({
     },
 }, { timestamps: { createdAt: 'created_at' } });
 
-module.exports = mongoose.model('Room', RoomSchema);
+module.exports = Room = mongoose.model('Room', RoomSchema);

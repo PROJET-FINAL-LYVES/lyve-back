@@ -25,6 +25,7 @@ const io = new Server(server, {
 // controllers
 const userController = require('./controllers/user');
 const videoController = require('./controllers/video');
+const roomController = require('./controllers/room');
 
 // helpers
 const { verifyJsonWebToken } = require('./helpers');
@@ -50,6 +51,8 @@ app.get('/', (req, res) => {
 app.post('/login', userController.login);
 app.post('/register', userController.register);
 app.get('/logout', userController.logout);
+app.post('/room', verifyJsonWebToken, roomController.create);
+app.delete('/room', verifyJsonWebToken, roomController.delete);
 
 app.get('/dashboard', verifyJsonWebToken, (req, res) => {
     res.render('dashboard');

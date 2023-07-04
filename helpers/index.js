@@ -25,7 +25,8 @@ const verifyJsonWebToken = (req, res, next) => {
     }
 
     try {
-        jwt.verify(authorizationToken, process.env.JWT_SECRET);
+        req.user = jwt.verify(authorizationToken, process.env.JWT_SECRET);
+        console.log(req.user);
         next();
     } catch (e) {
         if (e instanceof jwt.JsonWebTokenError) {
