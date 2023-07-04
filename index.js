@@ -6,9 +6,6 @@ const express = require('express');
 const http = require('http');
 const { Server } = require('socket.io');
 
-// constants
-const { START_VIDEO_EVENT, MESSAGE_EVENT, ADD_VIDEO_EVENT } = require('./constants/socket');
-
 // initializations
 const app = express();
 const port = process.env.APP_PORT;
@@ -54,6 +51,10 @@ app.get('/dashboard', userController.requireAuth, (req, res) => {
 
 const hosts = {};
 const rooms = {};
+const playlists = {};
+const playerStates = {};
+
+
 
 io.on('connection', (socket) => {
     socket.on('join room', (roomId) => {
@@ -95,6 +96,48 @@ io.on('connection', (socket) => {
                 action.time = currentTime;
                 console.log('Received video action: ', action);
                 socket.broadcast.to(roomId).emit('video action', action, currentTime);
+            }
+        }
+    });
+
+    socket.on('video start', (roomId) => {
+        playerStates[roomId] = 'playing';
+    });
+
+    socket.on('video end', (roomId) => {
+        playerStates[roomId] = 'idle';
+
+        if (playlists[roomId] && playlists[roomId].length > 0) {
+            const nextVideo = playlists[roomId].shift();
+
+            io.to(roomId).emit('update playlist', playlists[roomId]);
+            io.to(roomId).emit('play video', nextVideo);
+        }
+    });
+
+    socket.on('add video', (roomId, videoUrl) => {
+        if (!playlists[roomId]) {
+            playlists[roomId] = [];
+        }
+
+        playlists[roomId].push(videoUrl);
+
+        io.to(roomId).emit('update playlist', playlists[roomId]);
+
+        if (socket.id === hosts[roomId] && (playlists[roomId].length === 1 || playerStates[roomId] === 'idle')) {
+            io.to(roomId).emit('play video', videoUrl);
+        }
+    });
+
+
+    socket.on('next video', (roomId) => {
+        if (playlists[roomId] && playlists[roomId].length > 0) {
+            const nextVideo = playlists[roomId].shift();
+
+            io.to(roomId).emit('update playlist', playlists[roomId]);
+
+            if (playerStates[roomId] !== 'playing') {
+                io.to(roomId).emit('play video', nextVideo);
             }
         }
     });
