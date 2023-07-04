@@ -123,7 +123,7 @@ io.on('connection', (socket) => {
         playlists[roomId].push(videoUrl);
 
         io.to(roomId).emit('update playlist', playlists[roomId]);
-
+        console.log('Playlist of room ' + roomId + ' is now: ' + playlists[roomId]);
         if (socket.id === hosts[roomId] && (playlists[roomId].length === 1 || playerStates[roomId] === 'idle')) {
             io.to(roomId).emit('play video', videoUrl);
         }
