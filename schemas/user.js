@@ -1,6 +1,8 @@
 const mongoose = require('mongoose');
-const bcrypt = require("bcrypt");
+const bcrypt = require('bcrypt');
 const { SALT_ROUNDS, USER_ROLES, USER_GENDERS, MAIL_REGEX, USERNAME_MIN_LENGTH, USERNAME_MAX_LENGTH } = require('../constants/app');
+
+const { createJsonWebToken } = require('../helpers');
 
 const UserSchema = new mongoose.Schema({
     username: {
@@ -72,7 +74,9 @@ UserSchema.pre('save', async function(next) {
 // method to return values after registration and login
 UserSchema.method('toDisplay', function() {
     const { __v, _id, password, ...object } = this.toObject();
-    return object;
+    const jwt = createJsonWebToken(object);
+
+    return { ...object, token: jwt };
 })
 
 module.exports = User = mongoose.model('User', UserSchema);
