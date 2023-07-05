@@ -1,5 +1,5 @@
-const UserService = require("../services/user");
-const bcrypt = require("bcrypt");
+const UserService = require('../services/user');
+const bcrypt = require('bcrypt');
 
 class UserController {
     static async login(req, res) {
@@ -14,9 +14,6 @@ class UserController {
         if (!isPasswordValid) {
             return res.json({ success: false, message: 'Invalid password' });
         }
-
-        // TODO: update session
-        // req.session.userId = user._id;
 
         return res.json({ success: true, user: user.toDisplay() });
     }
@@ -48,13 +45,6 @@ class UserController {
         const response = await UserService.createUser({ username, mail, gender, dob, role, newsletter, data_sharing, password });
         return res.json(response);
     }
-
-    static async requireAuth(req, res, next) {
-        if (!req.session.userId) {
-            return res.redirect('/login');
-        }
-        next();
-    };
 }
 
 module.exports = UserController;
