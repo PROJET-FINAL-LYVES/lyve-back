@@ -24,12 +24,12 @@ const RoomSchema = new mongoose.Schema({
         type: Number,
         default: 12,
         validate: {
-            validator: function(v) {
+            validator: function (v) {
                 return v <= 12;
             },
             message: props => `Max people inside should not be more than 12!`
         }
     },
-}, { timestamps: true });
+}, {timestamps: true});
 
 module.exports = Room = mongoose.model('Room', RoomSchema);
