@@ -81,6 +81,17 @@ io.on('connection', (socket) => {
         }
 
         socket.emit('host status', socket.id === hosts[roomId]);
+        // ...
+
+        // Vérifie si une vidéo est actuellement en cours de lecture.
+        if (playerStates[roomId] === 'playing') {
+            // On demande à l'hôte d'obtenir le temps courant de la vidéo et de l'envoyer au nouvel utilisateur.
+            socket.to(hosts[roomId]).emit('get current time', socket.id);
+        }
+
+        socket.on('send current time', (newUserId, currentTime) => {
+            socket.to(newUserId).emit('set current time', currentTime);
+        });
     });
 
     socket.on('chat message', (roomId, msg) => {
