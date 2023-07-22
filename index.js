@@ -51,7 +51,6 @@ app.get('/dashboard', verifyJsonWebToken, (req, res) => {
     res.render('dashboard');
 });
 
-
 const hosts = {};
 const rooms = {};
 const playlists = {};
@@ -62,6 +61,8 @@ io.on('connection', (socket) => {
     socket.on('join room', (roomId) => {
         socket.join(roomId);
         console.log('A user joined room ' + roomId + '!');
+        console.log(playerStates[roomId])
+
 
         // Si la room n'a pas encore de liste de sockets, on la crée
         if (!rooms[roomId]) {
@@ -81,17 +82,23 @@ io.on('connection', (socket) => {
         }
 
         socket.emit('host status', socket.id === hosts[roomId]);
-        // ...
 
         // Vérifie si une vidéo est actuellement en cours de lecture.
         if (playerStates[roomId] === 'playing') {
             // On demande à l'hôte d'obtenir le temps courant de la vidéo et de l'envoyer au nouvel utilisateur.
             socket.to(hosts[roomId]).emit('get current time', socket.id);
-        }
+        } 
 
         socket.on('send current time', (newUserId, currentTime) => {
             socket.to(newUserId).emit('set current time', currentTime);
         });
+
+        io.to(roomId).emit('room users', rooms[roomId]);
+    });
+
+    socket.on('get room users', (roomId) => {
+        const roomUsers = rooms[roomId] || [];
+        socket.emit('room users', roomUsers);
     });
 
     socket.on('chat message', (roomId, msg) => {
@@ -132,7 +139,6 @@ io.on('connection', (socket) => {
         if (!playlists[roomId]) {
             playlists[roomId] = [];
         }
-
         playlists[roomId].push(videoUrl);
 
         io.to(roomId).emit('update playlist', playlists[roomId]);
@@ -142,16 +148,15 @@ io.on('connection', (socket) => {
         }
     });
 
-
     socket.on('next video', (roomId) => {
         if (playlists[roomId] && playlists[roomId].length > 0) {
             const nextVideo = playlists[roomId].shift();
-
+            console.log('Playlist of room ' + roomId + ' is now: ' + playlists[roomId])
+            console.log('Next video is ' + nextVideo)
             io.to(roomId).emit('update playlist', playlists[roomId]);
 
-            if (playerStates[roomId] !== 'playing') {
-                io.to(roomId).emit('play video', nextVideo);
-            }
+            socket.broadcast.to(roomId).emit('video action', 'play', 0);
+
         }
     });
 
@@ -172,6 +177,7 @@ io.on('connection', (socket) => {
 
                     // Send host status update to the new host
                     io.to(hosts[roomId]).emit('host status', true);
+                    io.to(roomId).emit('room users', rooms[roomId]);
                 }
             }
         }
