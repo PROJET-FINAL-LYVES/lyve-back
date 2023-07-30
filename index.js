@@ -19,7 +19,6 @@ const io = new Server(server, {
     }
 });
 
-// controllers
 const userController = require('./controllers/user');
 const videoController = require('./controllers/video');
 
@@ -37,7 +36,6 @@ mongoose.connect(process.env.DATABASE_URI, { useNewUrlParser: true, useUnifiedTo
         console.error('Database connection error');
     });
 
-// USER ROUTES
 app.post('/login', userController.login);
 app.post('/register', userController.register);
 app.get('/logout', userController.logout);
@@ -142,16 +140,18 @@ io.on('connection', (socket) => {
     socket.on('next video', (roomId) => {
         console.log('Next video in room ' + roomId);
         if (playlists[roomId] && playlists[roomId].length > 0) {
-            const nextVideo = playlists[roomId].shift();
+            playlists[roomId].shift();
+            const nextVideo = playlists[roomId][0];
+            if (nextVideo) {
+                io.to(roomId).emit('set video url', nextVideo);
+            }
             io.to(roomId).emit('update playlist', playlists[roomId]);
-            io.to(roomId).emit('play video', nextVideo);
             console.log('Playing next video in room ' + roomId + ': ' + nextVideo);
         }
     });
 
     socket.on('clear playlist', (roomId) => {
-        if (socket.id === hosts[roomId]) {  // Only allow host to clear the playlist
-            // Keep the first video in the playlist
+        if (socket.id === hosts[roomId]) {
             if (playlists[roomId] && playlists[roomId].length > 0) {
                 playlists[roomId] = [playlists[roomId][0]];
             } else {
@@ -162,36 +162,38 @@ io.on('connection', (socket) => {
         }
     });
 
+    socket.on('remove song', (roomId, songIndex) => {
+        if (socket.id === hosts[roomId]) {
+            if (playlists[roomId] && songIndex < playlists[roomId].length) {
+                playlists[roomId].splice(songIndex, 1);
+                io.to(roomId).emit('update playlist', playlists[roomId]);
+                console.log(`Host of room ${roomId} removed song at index ${songIndex}.`);
+            }
+        }
+    });
 
     socket.on('disconnect', () => {
         console.log('user disconnected');
-        // For each room
         for (const roomId in rooms) {
-            // Find the index of the socket in the list
             const index = rooms[roomId].indexOf(socket.id);
             if (index > -1) {
-                // Remove the socket from the list
                 rooms[roomId].splice(index, 1);
                 console.log('Removed user ' + socket.id + ' from room ' + roomId);
-                // If the socket was the host, assign the host to the next socket in the list
                 if (hosts[roomId] === socket.id) {
                     console.log('Host of room ' + roomId + ' is now ' + rooms[roomId][0]);
                     hosts[roomId] = rooms[roomId][0];
 
-                    // Send host status update to the new host
                     io.to(hosts[roomId]).emit('host status', true);
                 }
 
-                // Always send updated user list
                 io.to(roomId).emit('room users', rooms[roomId]);
 
-                // Check if the room is empty and if so, clear the playlist
                 if (rooms[roomId].length === 0) {
                     console.log(`Room ${roomId} is empty, clearing playlist.`);
                     playlists[roomId] = [];
                     io.to(roomId).emit('update playlist', playlists[roomId]);
-                    delete hosts[roomId];  // Delete host entry if room is empty
-                    delete playerStates[roomId];  // Delete player state entry if room is empty
+                    delete hosts[roomId];
+                    delete playerStates[roomId]; 
                 }
             }
         }
