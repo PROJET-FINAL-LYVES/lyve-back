@@ -56,43 +56,37 @@ io.on('connection', (socket) => {
         console.log('Nouvel utilisateur ' + roomId);
         socket.join(roomId);
 
-        // Si la room n'a pas encore de liste de clients, on la crée
         if (!rooms[roomId]) {
             console.log('Creating new room ' + roomId);
-            playerStates[roomId] = 'paused';  // Initialize playerStates[roomId] when creating a new room
             rooms[roomId] = [];
+            playerStates[roomId] = 'paused';
         }
 
-        // On ajoute le nouveau client à la liste si il n'y est pas déjà
         if (!rooms[roomId].includes(socket.id)) {
             rooms[roomId].push(socket.id);
         }
 
-        // Si la room n'a pas encore d'hôte, la première socket devient l'hôte
         if (!hosts[roomId]) {
             hosts[roomId] = rooms[roomId][0];
             console.log('Host of room ' + roomId + ' is ' + hosts[roomId]);
         }
 
-        // si le socket n'est pas l'hote, il demande l'état du player
         if (socket.id !== hosts[roomId]) {
             socket.to(hosts[roomId]).emit('get player state', socket.id);
             console.log('Asking host of room ' + roomId + ' for player state');
         }
 
-        // Send the current video URL if available
         if (playlists[roomId] && playlists[roomId].length > 0) {
             console.log('Sending video to ' + socket.id);
             const currentVideoId = playlists[roomId][0];
             console.log('Current video: ' + currentVideoId);
-            socket.emit('set video url', currentVideoId);  // Use socket.emit instead of socket.to
+            socket.emit('set video url', currentVideoId);
         }
 
         socket.emit('update playlist', playlists[roomId] || []);
         socket.emit('host status', socket.id === hosts[roomId]);
         io.to(roomId).emit('room users', rooms[roomId]);
     });
-
 
     socket.on('send player state', (newUserId, currentTime, playerState) => {
         socket.to(newUserId).emit('edit client player state', currentTime, playerState);
