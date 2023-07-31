@@ -51,11 +51,9 @@ const playerStates = {};
 
 io.on('connection', (socket) => {
     socket.on('join room', (roomId) => {
-        console.log('Nouvel utilisateur ' + roomId);
         socket.join(roomId);
 
         if (!rooms[roomId]) {
-            console.log('Creating new room ' + roomId);
             rooms[roomId] = [];
             playerStates[roomId] = 'paused';
         }
@@ -66,18 +64,14 @@ io.on('connection', (socket) => {
 
         if (!hosts[roomId]) {
             hosts[roomId] = rooms[roomId][0];
-            console.log('Host of room ' + roomId + ' is ' + hosts[roomId]);
         }
 
         if (socket.id !== hosts[roomId]) {
             socket.to(hosts[roomId]).emit('get player state', socket.id);
-            console.log('Asking host of room ' + roomId + ' for player state');
         }
 
         if (playlists[roomId] && playlists[roomId].length > 0) {
-            console.log('Sending video to ' + socket.id);
             const currentVideoId = playlists[roomId][0];
-            console.log('Current video: ' + currentVideoId);
             socket.emit('set video url', currentVideoId);
         }
 
@@ -88,7 +82,6 @@ io.on('connection', (socket) => {
 
     socket.on('send player state', (newUserId, currentTime, playerState) => {
         socket.to(newUserId).emit('edit client player state', currentTime, playerState);
-        console.log('Sent current state to [' + newUserId + '] (time: ' + currentTime + ', state: ' + playerState + ')');
     });
 
     socket.on('get room users', (roomId) => {
@@ -118,7 +111,6 @@ io.on('connection', (socket) => {
 
     socket.on('get video url', (roomId) => {
         if (playlists[roomId] && playlists[roomId].length > 0) {
-            console.log('Sending video to ' + socket.id);
             const currentVideoId = playlists[roomId][0];
             socket.to(socket.id).emit('set video url', currentVideoId);
         }
@@ -138,7 +130,6 @@ io.on('connection', (socket) => {
     });
 
     socket.on('next video', (roomId) => {
-        console.log('Next video in room ' + roomId);
         if (playlists[roomId] && playlists[roomId].length > 0) {
             playlists[roomId].shift();
             const nextVideo = playlists[roomId][0];
@@ -146,7 +137,6 @@ io.on('connection', (socket) => {
                 io.to(roomId).emit('set video url', nextVideo);
             }
             io.to(roomId).emit('update playlist', playlists[roomId]);
-            console.log('Playing next video in room ' + roomId + ': ' + nextVideo);
         }
     });
 
@@ -158,7 +148,6 @@ io.on('connection', (socket) => {
                 playlists[roomId] = [];
             }
             io.to(roomId).emit('update playlist', playlists[roomId]);
-            console.log(`Host of room ${roomId} cleared the playlist but kept the first video.`);
         }
     });
 
@@ -167,20 +156,16 @@ io.on('connection', (socket) => {
             if (playlists[roomId] && songIndex < playlists[roomId].length) {
                 playlists[roomId].splice(songIndex, 1);
                 io.to(roomId).emit('update playlist', playlists[roomId]);
-                console.log(`Host of room ${roomId} removed song at index ${songIndex}.`);
             }
         }
     });
 
     socket.on('disconnect', () => {
-        console.log('user disconnected');
         for (const roomId in rooms) {
             const index = rooms[roomId].indexOf(socket.id);
             if (index > -1) {
                 rooms[roomId].splice(index, 1);
-                console.log('Removed user ' + socket.id + ' from room ' + roomId);
                 if (hosts[roomId] === socket.id) {
-                    console.log('Host of room ' + roomId + ' is now ' + rooms[roomId][0]);
                     hosts[roomId] = rooms[roomId][0];
 
                     io.to(hosts[roomId]).emit('host status', true);
@@ -189,7 +174,6 @@ io.on('connection', (socket) => {
                 io.to(roomId).emit('room users', rooms[roomId]);
 
                 if (rooms[roomId].length === 0) {
-                    console.log(`Room ${roomId} is empty, clearing playlist.`);
                     playlists[roomId] = [];
                     io.to(roomId).emit('update playlist', playlists[roomId]);
                     delete hosts[roomId];
