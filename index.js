@@ -1,26 +1,24 @@
 require('dotenv').config();
 
-// dependencies
 const mongoose = require('mongoose');
 const express = require('express');
 const cors = require('cors');
 const http = require('http');
 const { Server } = require('socket.io');
 
-// initializations
 const app = express();
 const port = process.env.APP_PORT;
 const server = http.createServer(app);
 
 const io = new Server(server, {
     cors: {
-        origin: 'http://localhost:3000', // specify the domain of the client
+        origin: 'http://localhost:3000',
         methods: ['GET', 'POST']
     }
 });
 
 const userController = require('./controllers/user');
-const videoController = require('./controllers/video');
+// const videoController = require('./controllers/video');
 
 const { verifyJsonWebToken } = require('./helpers');
 
