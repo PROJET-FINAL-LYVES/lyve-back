@@ -18,7 +18,9 @@ const io = new Server(server, {
 });
 
 const userController = require('./controllers/user');
-// const videoController = require('./controllers/video');
+const videoController = require('./controllers/video');
+const roomController = require('./controllers/room');
+
 
 const { verifyJsonWebToken } = require('./helpers');
 
@@ -37,6 +39,8 @@ mongoose.connect(process.env.DATABASE_URI, { useNewUrlParser: true, useUnifiedTo
 app.post('/login', userController.login);
 app.post('/register', userController.register);
 app.get('/logout', userController.logout);
+app.post('/room', verifyJsonWebToken, roomController.create);
+app.delete('/room', verifyJsonWebToken, roomController.delete);
 
 app.get('/dashboard', verifyJsonWebToken, (req, res) => {
     res.render('dashboard');

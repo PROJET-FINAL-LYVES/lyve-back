@@ -58,7 +58,21 @@ const UserSchema = new mongoose.Schema({
     lastLogin: {
         type: Date
     }
-}, { timestamps: true });
+}, {
+    timestamps: true,
+    methods: {
+        isAdmin: function() {
+            return this.role === 'admin';
+        },
+
+        toDisplay: function() {
+            const { __v, _id, password, ...object } = this.toObject();
+            const jwt = createJsonWebToken(object);
+
+            return { ...object, token: jwt };
+        }
+    }
+});
 
 UserSchema.pre('save', async function(next) {
     const user = this;
@@ -70,13 +84,5 @@ UserSchema.pre('save', async function(next) {
 
     return next();
 });
-
-// method to return values after registration and login
-UserSchema.method('toDisplay', function() {
-    const { __v, _id, password, ...object } = this.toObject();
-    const jwt = createJsonWebToken(object);
-
-    return { ...object, token: jwt };
-})
 
 module.exports = User = mongoose.model('User', UserSchema);
