@@ -1,34 +1,27 @@
 require('dotenv').config();
 
-// dependencies
 const mongoose = require('mongoose');
 const express = require('express');
 const cors = require('cors');
 const http = require('http');
 const { Server } = require('socket.io');
 
-// constants
-const { START_VIDEO_EVENT, MESSAGE_EVENT, ADD_VIDEO_EVENT } = require('./constants/socket');
-
-// initializations
 const app = express();
 const port = process.env.APP_PORT;
 const server = http.createServer(app);
 
 const io = new Server(server, {
     cors: {
-        origin: 'http://localhost:3000', // specify the domain of the client
+        origin: 'http://localhost:3000',
         methods: ['GET', 'POST']
     }
 });
 
-// controllers
 const userController = require('./controllers/user');
 const videoController = require('./controllers/video');
 const roomController = require('./controllers/room');
 
 
-// helpers
 const { verifyJsonWebToken } = require('./helpers');
 
 app.use(cors());
@@ -43,12 +36,6 @@ mongoose.connect(process.env.DATABASE_URI, { useNewUrlParser: true, useUnifiedTo
         console.error('Database connection error');
     });
 
-// TODO: remove later I guess :)
-app.get('/', (req, res) => {
-    return res.json({ success: true });
-});
-
-// USER ROUTES
 app.post('/login', userController.login);
 app.post('/register', userController.register);
 app.get('/logout', userController.logout);
@@ -59,40 +46,146 @@ app.get('/dashboard', verifyJsonWebToken, (req, res) => {
     res.render('dashboard');
 });
 
-let videoStartTime = null;
-let currentVideoId = null;
+const hosts = {};
+const rooms = {};
+const playlists = {};
+const playerStates = {};
 
-// TODO: verify jwt socket
 io.on('connection', (socket) => {
-    console.log('a user connected');
+    socket.on('join room', (roomId) => {
+        socket.join(roomId);
 
-    if (currentVideoId) {
-        // send the current video and start time to the newly connected client
-        socket.emit('new video', { videoId: currentVideoId, startTime: videoStartTime });
-    }
+        if (!rooms[roomId]) {
+            rooms[roomId] = [];
+            playerStates[roomId] = 'paused';
+        }
 
-    // listen for the 'start video' event
-    socket.on(START_VIDEO_EVENT, (newVideoId) => {
-        currentVideoId = newVideoId;
-        videoStartTime = Date.now();
+        if (!rooms[roomId].includes(socket.id)) {
+            rooms[roomId].push(socket.id);
+        }
 
-        // emit the 'new video' event to all connected clients
-        io.emit('new video', { videoId: currentVideoId, startTime: videoStartTime });
+        if (!hosts[roomId]) {
+            hosts[roomId] = rooms[roomId][0];
+        }
+
+        if (socket.id !== hosts[roomId]) {
+            socket.to(hosts[roomId]).emit('get player state', socket.id);
+        }
+
+        if (playlists[roomId] && playlists[roomId].length > 0) {
+            const currentVideoId = playlists[roomId][0];
+            socket.emit('set video url', currentVideoId);
+        }
+
+        socket.emit('update playlist', playlists[roomId] || []);
+        socket.emit('host status', socket.id === hosts[roomId]);
+        io.to(roomId).emit('room users', rooms[roomId]);
     });
 
-
-    socket.on(MESSAGE_EVENT, (msg) => {
-        console.log('message: ' + msg);
-        io.emit(MESSAGE_EVENT, msg);
+    socket.on('send player state', (newUserId, currentTime, playerState) => {
+        socket.to(newUserId).emit('edit client player state', currentTime, playerState);
     });
 
-    socket.on(ADD_VIDEO_EVENT, videoController.addVideoToPlaylist);
+    socket.on('get room users', (roomId) => {
+        const roomUsers = rooms[roomId] || [];
+        socket.emit('room users', roomUsers);
+    });
+
+    socket.on('chat message', (roomId, msg) => {
+        io.to(roomId).emit('chat message', msg);
+    });
+
+    const videoActionHandler = (roomId, action) => {
+        const currentTime = action.time;
+        if (socket.id === hosts[roomId]) {
+            if (action.type === 'play' || action.type === 'pause') {
+                playerStates[roomId] = (action.type === 'play') ? 'playing' : 'paused';
+                action.time = currentTime;
+                socket.broadcast.to(roomId).emit('client video action', action, currentTime);
+            }
+        }
+    };
+    socket.on('video action', videoActionHandler);
+
+    socket.on('video start', (roomId) => {
+        playerStates[roomId] = 'play';
+    });
+
+    socket.on('get video url', (roomId) => {
+        if (playlists[roomId] && playlists[roomId].length > 0) {
+            const currentVideoId = playlists[roomId][0];
+            socket.to(socket.id).emit('set video url', currentVideoId);
+        }
+    });
+
+    socket.on('add video', (roomId, videoUrl) => {
+        if (!playlists[roomId]) {
+            playlists[roomId] = [];
+        }
+        playlists[roomId].push(videoUrl);
+
+        io.to(roomId).emit('update playlist', playlists[roomId]);
+
+        if (playlists[roomId].length === 1) {
+            io.to(roomId).emit('set video url', videoUrl);
+        }
+    });
+
+    socket.on('next video', (roomId) => {
+        if (playlists[roomId] && playlists[roomId].length > 0) {
+            playlists[roomId].shift();
+            const nextVideo = playlists[roomId][0];
+            if (nextVideo) {
+                io.to(roomId).emit('set video url', nextVideo);
+            }
+            io.to(roomId).emit('update playlist', playlists[roomId]);
+        }
+    });
+
+    socket.on('clear playlist', (roomId) => {
+        if (socket.id === hosts[roomId]) {
+            if (playlists[roomId] && playlists[roomId].length > 0) {
+                playlists[roomId] = [playlists[roomId][0]];
+            } else {
+                playlists[roomId] = [];
+            }
+            io.to(roomId).emit('update playlist', playlists[roomId]);
+        }
+    });
+
+    socket.on('remove song', (roomId, songIndex) => {
+        if (socket.id === hosts[roomId]) {
+            if (playlists[roomId] && songIndex < playlists[roomId].length) {
+                playlists[roomId].splice(songIndex, 1);
+                io.to(roomId).emit('update playlist', playlists[roomId]);
+            }
+        }
+    });
 
     socket.on('disconnect', () => {
-        console.log('user disconnected');
-    });
-});
+        for (const roomId in rooms) {
+            const index = rooms[roomId].indexOf(socket.id);
+            if (index > -1) {
+                rooms[roomId].splice(index, 1);
+                if (hosts[roomId] === socket.id) {
+                    hosts[roomId] = rooms[roomId][0];
 
+                    io.to(hosts[roomId]).emit('host status', true);
+                }
+
+                io.to(roomId).emit('room users', rooms[roomId]);
+
+                if (rooms[roomId].length === 0) {
+                    playlists[roomId] = [];
+                    io.to(roomId).emit('update playlist', playlists[roomId]);
+                    delete hosts[roomId];
+                    delete playerStates[roomId]; 
+                }
+            }
+        }
+    });
+
+});
 
 server.listen(port, () => {
     console.log(`App listening on port ${port}`);
