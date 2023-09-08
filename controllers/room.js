@@ -44,6 +44,10 @@ class RoomController {
         const response = await RoomService.editRoom(room, { name, type, max_people_inside });
         return res.status(200).json(response);
     }
+
+    static createRoom = () => {
+
+    }
 }
 
 module.exports = RoomController;

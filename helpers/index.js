@@ -37,8 +37,14 @@ const verifyJsonWebToken = (req, res, next) => {
     }
 };
 
+const generateRandomString = (length = 10) => {
+    const characters = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
+    return [...Array(length)].reduce(a => a + characters[~~(Math.random() * characters.length)], '');
+};
+
 module.exports = {
     handleErrorMessages,
     createJsonWebToken,
-    verifyJsonWebToken
+    verifyJsonWebToken,
+    generateRandomString
 }

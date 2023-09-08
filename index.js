@@ -22,7 +22,9 @@ const videoController = require('./controllers/video');
 const roomController = require('./controllers/room');
 
 
-const { verifyJsonWebToken } = require('./helpers');
+const { verifyJsonWebToken, generateRandomString} = require('./helpers');
+const { CREATE_ROOM_EVENT, DELETE_ROOM_EVENT, JOIN_ROOM_EVENT} = require("./constants/socket");
+const {MAX_ROOM_USERS_LIMIT, MUSIC_TYPES} = require("./constants/app");
 
 app.use(cors());
 app.use(express.json());
@@ -42,6 +44,8 @@ app.get('/logout', userController.logout);
 app.post('/room', verifyJsonWebToken, roomController.create);
 app.delete('/room', verifyJsonWebToken, roomController.delete);
 
+// TODO: app.get('/room/:roomId');
+
 app.get('/dashboard', verifyJsonWebToken, (req, res) => {
     res.render('dashboard');
 });
@@ -51,7 +55,64 @@ const rooms = {};
 const playlists = {};
 const playerStates = {};
 
+// get rooms filtered by most active one
+const getRoomsByActivity = () => {
+    return rooms.sort((a, b) => a.userList.length - b.userList.length);
+};
+
 io.on('connection', (socket) => {
+    socket.on(CREATE_ROOM_EVENT, ({ name, type, maxUsers, timeout }) => {
+        // can't create room if already owner of one
+        // TODO: change socketid by userid
+        // TODO: better error msg, maybe another event ?
+        const isOwnerOfRoom = Object.values(rooms).find(room => room.hostId === socket.id);
+        if (isOwnerOfRoom) return socket.emit(CREATE_ROOM_EVENT, { message: 'Already owner of a room.' });
+
+        // TODO: better error msg, maybe another event ?
+        if (maxUsers > MAX_ROOM_USERS_LIMIT) return socket.emit(CREATE_ROOM_EVENT, { message: 'Max users value too high.' });
+
+        // TODO: maybe another event ?
+        if (MUSIC_TYPES.includes(type)) return socket.emit(CREATE_ROOM_EVENT, { message: 'Invalid music type.' });
+
+        const roomId = generateRandomString();
+        rooms[roomId] = {
+            name,
+            hostId: socket.id, // TODO: userid
+            userList: [],
+            songList: [],
+            type,
+            maxUsers,
+            timeout,
+            creationDate: Date.now()
+        };
+
+        // TODO: send event to client so the front can change user's URL to room's one
+    });
+
+    socket.on(JOIN_ROOM_EVENT, roomId => {
+        if (!rooms[roomId]) return socket.emit(JOIN_ROOM_EVENT, { message: 'Room doesn\'t exist.' });
+
+        // TODO: userid
+        if (!rooms[roomId].userList.includes(socket.id)) rooms[roomId].userList.push(socket.id);
+
+        socket.join(roomId);
+        // TODO: send event to client so the front can change user's URL to room's one
+    });
+
+    socket.on(DELETE_ROOM_EVENT, roomId => {
+        const room = rooms[roomId];
+        if (!room) return socket.emit(DELETE_ROOM_EVENT, { message: 'Room doesn\'t exist.' });
+
+        // TODO: admin must bypass this
+        // TODO: check by userid, not socketid
+        if (room.hostId !== socket.id) return socket.emit(DELETE_ROOM_EVENT, { message: 'You are not the owner of this room.' });
+
+        io.socketsLeave(roomId); // disconnect everyone from this room
+        delete rooms[roomId];
+
+        // TODO: send event to client so the front can change user's URL to dashboard
+    });
+
     socket.on('join room', (roomId) => {
         socket.join(roomId);
 
