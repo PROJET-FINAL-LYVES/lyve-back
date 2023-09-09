@@ -51,6 +51,7 @@ const getRoomsByActivity = () => {
 
 // each socket must have a valid JWT
 io.use((socket, next) => {
+    console.log(socket.handshake.auth);
     const token = socket.handshake.auth.token;
     if (!token) {
         return next(new Error('Forbidden access.'));
@@ -68,7 +69,7 @@ io.use((socket, next) => {
 io.on('connection', (socket) => {
     socket.on(CREATE_ROOM_EVENT, ({ name, type, maxUsers, timeout }) => {
         // can't create room if already owner of one
-        const isOwnerOfRoom = Object.values(rooms).find(room => room.hostId === socket.user.id);
+        const isOwnerOfRoom = Object.values(rooms).find(room => room.hostId === socket.user._id);
         if (isOwnerOfRoom) return socket.emit(CREATE_ROOM_EVENT, { message: 'Already owner of a room.' });
 
         // check max users is not too high
@@ -80,7 +81,7 @@ io.on('connection', (socket) => {
         const roomId = generateRandomString();
         rooms[roomId] = {
             name,
-            hostId: socket.user.id,
+            hostId: socket.user._id,
             userList: [],
             songList: [],
             type,
@@ -89,24 +90,27 @@ io.on('connection', (socket) => {
             creationDate: Date.now()
         };
 
-        // TODO: send event to client so the front can change user's URL to room's one ?
+        // inform client that room has been created
+        return socket.emit(CREATE_ROOM_EVENT, roomId);
     });
 
     socket.on(JOIN_ROOM_EVENT, roomId => {
         if (!rooms[roomId]) return socket.emit(JOIN_ROOM_EVENT, { message: 'Room doesn\'t exist.' });
         if (rooms[roomId].userList.length >= rooms[roomId].maxUsers) return socket.emit(JOIN_ROOM_EVENT, { message: 'Room is full.' });
 
-        if (!rooms[roomId].userList.includes(socket.user.id)) rooms[roomId].userList.push(socket.user.id);
+        if (!rooms[roomId].userList.includes(socket.user._id)) rooms[roomId].userList.push(socket.user._id);
 
         socket.join(roomId);
-        // TODO: send event to client so the front can change user's URL to room's one ?
+
+        // inform client that he has joined the room
+        return socket.emit(JOIN_ROOM_EVENT, roomId);
     });
 
     socket.on(LEAVE_ROOM_EVENT, roomId => {
         if (!rooms[roomId]) return socket.emit(LEAVE_ROOM_EVENT, { message: 'Room doesn\'t exist.' });
 
         // remove user from userList
-        const userIndex = rooms[roomId].userList.indexOf(socket.user.id);
+        const userIndex = rooms[roomId].userList.indexOf(socket.user._id);
         if (userIndex !== -1) {
             rooms[roomId].userList.splice(userIndex, 1);
         }
@@ -116,13 +120,14 @@ io.on('connection', (socket) => {
             delete rooms[roomId];
         }
         // if host left, replace him by oldest user in room
-        else if (rooms[roomId].hostId === socket.user.id) {
+        else if (rooms[roomId].hostId === socket.user._id) {
             rooms[roomId].hostId = rooms[roomId].userList[0];
         }
 
         socket.leave(roomId);
 
-        // TODO: send event to client so the front can change user's URL to room's one ?
+        // inform client that he has left the room
+        return socket.emit(LEAVE_ROOM_EVENT, roomId);
     });
 
     socket.on(DELETE_ROOM_EVENT, roomId => {
@@ -134,10 +139,11 @@ io.on('connection', (socket) => {
             return socket.emit(DELETE_ROOM_EVENT, { message: 'You are not the owner of this room.' });
         }
 
+        // inform every user in room that it has been deleted
+        io.to(roomId).emit(DELETE_ROOM_EVENT, roomId);
+
         io.socketsLeave(roomId); // disconnect everyone from this room
         delete rooms[roomId];
-
-        // TODO: send event to client so the front can change user's URL to dashboard ?
     });
 
     socket.on('join room', (roomId) => {

@@ -66,7 +66,7 @@ const UserSchema = new mongoose.Schema({
         },
 
         toDisplay: function() {
-            const { __v, _id, password, ...object } = this.toObject();
+            const { __v, password, ...object } = this.toObject();
             const jwt = createJsonWebToken(object);
 
             return { ...object, token: jwt };
