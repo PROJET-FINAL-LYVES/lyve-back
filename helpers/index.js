@@ -18,22 +18,17 @@ const createJsonWebToken = user => {
     });
 };
 
-const verifyJsonWebToken = (req, res, next) => {
-    const authorizationToken = req.headers.authorization;
-    if (!authorizationToken) {
-        return res.status(403).json({ message: 'Forbidden access' });
-    }
-
+const verifyJsonWebToken = token => {
     try {
-        req.user = jwt.verify(authorizationToken, process.env.JWT_SECRET);
-        console.log(req.user);
-        next();
+        const tokenData = jwt.verify(token, process.env.JWT_SECRET);
+        console.log(tokenData);
+        return { success: true, tokenData };
     } catch (e) {
         if (e instanceof jwt.JsonWebTokenError) {
-            return res.status(401).json({ message: 'Unauthorized access' });
+            return { error: 'Unauthorized access.' };
         }
 
-        return res.status(400).json({ message: 'Invalid token' });
+        return { error: 'Invalid token.' };
     }
 };
 

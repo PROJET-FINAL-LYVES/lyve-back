@@ -5,6 +5,7 @@ const ADD_VIDEO_EVENT = 'add video';
 // rooms
 const CREATE_ROOM_EVENT = 'create room';
 const JOIN_ROOM_EVENT = 'join room v2'; // TODO: update to normal event afterwards
+const LEAVE_ROOM_EVENT = 'leave room';
 const DELETE_ROOM_EVENT = 'delete room';
 
 module.exports = {
@@ -13,5 +14,6 @@ module.exports = {
     ADD_VIDEO_EVENT,
     CREATE_ROOM_EVENT,
     JOIN_ROOM_EVENT,
+    LEAVE_ROOM_EVENT,
     DELETE_ROOM_EVENT
 };

@@ -18,12 +18,9 @@ const io = new Server(server, {
 });
 
 const userController = require('./controllers/user');
-const videoController = require('./controllers/video');
-const roomController = require('./controllers/room');
-
 
 const { verifyJsonWebToken, generateRandomString} = require('./helpers');
-const { CREATE_ROOM_EVENT, DELETE_ROOM_EVENT, JOIN_ROOM_EVENT} = require("./constants/socket");
+const { CREATE_ROOM_EVENT, DELETE_ROOM_EVENT, JOIN_ROOM_EVENT, LEAVE_ROOM_EVENT} = require("./constants/socket");
 const {MAX_ROOM_USERS_LIMIT, MUSIC_TYPES} = require("./constants/app");
 
 app.use(cors());
@@ -41,14 +38,6 @@ mongoose.connect(process.env.DATABASE_URI, { useNewUrlParser: true, useUnifiedTo
 app.post('/login', userController.login);
 app.post('/register', userController.register);
 app.get('/logout', userController.logout);
-app.post('/room', verifyJsonWebToken, roomController.create);
-app.delete('/room', verifyJsonWebToken, roomController.delete);
-
-// TODO: app.get('/room/:roomId');
-
-app.get('/dashboard', verifyJsonWebToken, (req, res) => {
-    res.render('dashboard');
-});
 
 const hosts = {};
 const rooms = {};
@@ -60,24 +49,38 @@ const getRoomsByActivity = () => {
     return rooms.sort((a, b) => a.userList.length - b.userList.length);
 };
 
+// each socket must have a valid JWT
+io.use((socket, next) => {
+    const token = socket.handshake.auth.token;
+    if (!token) {
+        return next(new Error('Forbidden access.'));
+    }
+
+    const { tokenData, error } = verifyJsonWebToken(token);
+    if (error) {
+        return next(new Error(error));
+    }
+
+    socket.user = tokenData;
+    next();
+});
+
 io.on('connection', (socket) => {
     socket.on(CREATE_ROOM_EVENT, ({ name, type, maxUsers, timeout }) => {
         // can't create room if already owner of one
-        // TODO: change socketid by userid
-        // TODO: better error msg, maybe another event ?
-        const isOwnerOfRoom = Object.values(rooms).find(room => room.hostId === socket.id);
+        const isOwnerOfRoom = Object.values(rooms).find(room => room.hostId === socket.user.id);
         if (isOwnerOfRoom) return socket.emit(CREATE_ROOM_EVENT, { message: 'Already owner of a room.' });
 
-        // TODO: better error msg, maybe another event ?
+        // check max users is not too high
         if (maxUsers > MAX_ROOM_USERS_LIMIT) return socket.emit(CREATE_ROOM_EVENT, { message: 'Max users value too high.' });
 
-        // TODO: maybe another event ?
+        // check music type is valid
         if (MUSIC_TYPES.includes(type)) return socket.emit(CREATE_ROOM_EVENT, { message: 'Invalid music type.' });
 
         const roomId = generateRandomString();
         rooms[roomId] = {
             name,
-            hostId: socket.id, // TODO: userid
+            hostId: socket.user.id,
             userList: [],
             songList: [],
             type,
@@ -86,31 +89,55 @@ io.on('connection', (socket) => {
             creationDate: Date.now()
         };
 
-        // TODO: send event to client so the front can change user's URL to room's one
+        // TODO: send event to client so the front can change user's URL to room's one ?
     });
 
     socket.on(JOIN_ROOM_EVENT, roomId => {
         if (!rooms[roomId]) return socket.emit(JOIN_ROOM_EVENT, { message: 'Room doesn\'t exist.' });
+        if (rooms[roomId].userList.length >= rooms[roomId].maxUsers) return socket.emit(JOIN_ROOM_EVENT, { message: 'Room is full.' });
 
-        // TODO: userid
-        if (!rooms[roomId].userList.includes(socket.id)) rooms[roomId].userList.push(socket.id);
+        if (!rooms[roomId].userList.includes(socket.user.id)) rooms[roomId].userList.push(socket.user.id);
 
         socket.join(roomId);
-        // TODO: send event to client so the front can change user's URL to room's one
+        // TODO: send event to client so the front can change user's URL to room's one ?
+    });
+
+    socket.on(LEAVE_ROOM_EVENT, roomId => {
+        if (!rooms[roomId]) return socket.emit(LEAVE_ROOM_EVENT, { message: 'Room doesn\'t exist.' });
+
+        // remove user from userList
+        const userIndex = rooms[roomId].userList.indexOf(socket.user.id);
+        if (userIndex !== -1) {
+            rooms[roomId].userList.splice(userIndex, 1);
+        }
+
+        // if no users left in room, delete it
+        if (rooms[roomId].userList.length === 0) {
+            delete rooms[roomId];
+        }
+        // if host left, replace him by oldest user in room
+        else if (rooms[roomId].hostId === socket.user.id) {
+            rooms[roomId].hostId = rooms[roomId].userList[0];
+        }
+
+        socket.leave(roomId);
+
+        // TODO: send event to client so the front can change user's URL to room's one ?
     });
 
     socket.on(DELETE_ROOM_EVENT, roomId => {
         const room = rooms[roomId];
         if (!room) return socket.emit(DELETE_ROOM_EVENT, { message: 'Room doesn\'t exist.' });
 
-        // TODO: admin must bypass this
-        // TODO: check by userid, not socketid
-        if (room.hostId !== socket.id) return socket.emit(DELETE_ROOM_EVENT, { message: 'You are not the owner of this room.' });
+        // only room's owner and admins can delete room
+        if (room.hostId !== socket.user.id && socket.user.role !== 'admin') {
+            return socket.emit(DELETE_ROOM_EVENT, { message: 'You are not the owner of this room.' });
+        }
 
         io.socketsLeave(roomId); // disconnect everyone from this room
         delete rooms[roomId];
 
-        // TODO: send event to client so the front can change user's URL to dashboard
+        // TODO: send event to client so the front can change user's URL to dashboard ?
     });
 
     socket.on('join room', (roomId) => {
