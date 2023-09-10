@@ -19,8 +19,8 @@ const io = new Server(server, {
 
 const userController = require('./controllers/user');
 
-const { verifyJsonWebToken, generateRandomString, checkUrlIsValid } = require('./helpers');
-const { MAX_ROOM_USERS_LIMIT, MUSIC_TYPES } = require('./constants/app');
+const { verifyJsonWebToken, generateRandomString, checkUrlIsValid, getVideoIdFromUrl} = require('./helpers');
+const { MAX_ROOM_USERS_LIMIT, MUSIC_TYPES, MESSAGE_INTERVAL, MAX_MESSAGE_LENGTH} = require('./constants/app');
 const {
     CREATE_ROOM_EVENT,
     DELETE_ROOM_EVENT,
@@ -31,6 +31,7 @@ const {
     ADD_SONG_EVENT,
     REMOVE_SONG_EVENT
 } = require('./constants/socket');
+const { getVideoData } = require("./helpers/youtube");
 
 app.use(cors());
 app.use(express.json());
@@ -53,6 +54,7 @@ const hosts = {};
 const rooms = {};
 const playlists = {};
 const playerStates = {};
+const usersLastMessageDate = {};
 
 // get rooms filtered by most active one
 const getRoomsByActivity = () => {
@@ -164,12 +166,21 @@ io.on('connection', (socket) => {
         if (!rooms[roomId]) return socket.emit(NEW_MESSAGE_EVENT, { message: 'Room doesn\'t exist.' });
         if (!rooms[roomId].userList.includes(socket.user._id)) return socket.emit(NEW_MESSAGE_EVENT, { message: 'You are not in this room.' });
 
-        // TODO: prevent flood
-        io.to(roomId).emit(NEW_MESSAGE_EVENT, message);
+        // check message length
+        if (message.length > MAX_MESSAGE_LENGTH) return socket.emit(NEW_MESSAGE_EVENT, { message: 'Message too long.' });
+
+        // check flood
+        const userLastMessageDate = usersLastMessageDate[socket.user._id];
+        if (userLastMessageDate + MESSAGE_INTERVAL >= Date.now()) return socket.emit(NEW_MESSAGE_EVENT, { message: 'Too fast.' });
+
+        // update user last message date
+        usersLastMessageDate[socket.user._id] = Date.now();
+
+        io.to(roomId).emit(NEW_MESSAGE_EVENT, { message, userId: socket.user._id });
     });
 
     // SONGS
-    socket.on(ADD_SONG_EVENT, (roomId, url) => {
+    socket.on(ADD_SONG_EVENT, async (roomId, url) => {
         if (!rooms[roomId]) return socket.emit(ADD_SONG_EVENT, { message: 'Room doesn\'t exist.' });
 
         // check user is in room
@@ -180,14 +191,14 @@ io.on('connection', (socket) => {
         if (userSongIndex !== -1) return socket.emit(ADD_SONG_EVENT, { message: 'You already have a pending song in this room.' });
 
         // check URL is valid
-        if (!checkUrlIsValid(url)) return socket.emit(ADD_SONG_EVENT, { message: 'Invalid URL.' });
+        const videoId = getVideoIdFromUrl(url);
+        if (!videoId) return socket.emit(ADD_SONG_EVENT, { message: 'Invalid URL format.' });
 
-        // TODO patryk: call YouTube API to get video duration duration and name
+        // call YouTube API to get video duration and name
+        const videoData = await getVideoData(videoId);
 
-        rooms[roomId].songList.push({ url, userId: socket.user._id });
-
-        // TODO: add data from API in return socket
-        io.to(roomId).emit(ADD_SONG_EVENT, { url });
+        rooms[roomId].songList.push({ ...videoData, url, userId: socket.user._id });
+        io.to(roomId).emit(ADD_SONG_EVENT, { ...videoData, url, userId: socket.user._id });
     });
 
     socket.on(REMOVE_SONG_EVENT, (roomId, songIndex) => {
@@ -203,7 +214,7 @@ io.on('connection', (socket) => {
 
         // remove song from array
         rooms[roomId].songList.splice(songIndex, 1);
-        io.to(roomId).emit(REMOVE_SONG_EVENT, song);
+        io.to(roomId).emit(REMOVE_SONG_EVENT, { ...song, index: songIndex });
     });
 
     socket.on('join room', (roomId) => {

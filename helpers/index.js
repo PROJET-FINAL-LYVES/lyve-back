@@ -37,19 +37,24 @@ const generateRandomString = (length = 10) => {
     return [...Array(length)].reduce(a => a + characters[~~(Math.random() * characters.length)], '');
 };
 
-const checkUrlIsValid = url => {
+const getVideoIdFromUrl = url => {
     let referenceUrl;
 
     try {
         referenceUrl = new URL(url);
-        console.log(referenceUrl);
     } catch (error) {
         return false;
     }
 
-    // TODO: check is from youtube
-    // TODO: check ID is valid (i.e is 11 characters)
-    return ['http:', 'https:'].includes(referenceUrl.protocol);
+    if (
+        ['http:', 'https:'].includes(referenceUrl.protocol) &&
+        ['www.youtube.com', 'youtube.com'].includes(referenceUrl.hostname) &&
+        referenceUrl.searchParams.get('v').length === 11
+    ) {
+        return referenceUrl.searchParams.get('v');
+    }
+
+    return false;
 };
 
 module.exports = {
@@ -57,5 +62,5 @@ module.exports = {
     createJsonWebToken,
     verifyJsonWebToken,
     generateRandomString,
-    checkUrlIsValid
+    getVideoIdFromUrl
 }
