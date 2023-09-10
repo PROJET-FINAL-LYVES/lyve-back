@@ -37,9 +37,25 @@ const generateRandomString = (length = 10) => {
     return [...Array(length)].reduce(a => a + characters[~~(Math.random() * characters.length)], '');
 };
 
+const checkUrlIsValid = url => {
+    let referenceUrl;
+
+    try {
+        referenceUrl = new URL(url);
+        console.log(referenceUrl);
+    } catch (error) {
+        return false;
+    }
+
+    // TODO: check is from youtube
+    // TODO: check ID is valid (i.e is 11 characters)
+    return ['http:', 'https:'].includes(referenceUrl.protocol);
+};
+
 module.exports = {
     handleErrorMessages,
     createJsonWebToken,
     verifyJsonWebToken,
-    generateRandomString
+    generateRandomString,
+    checkUrlIsValid
 }

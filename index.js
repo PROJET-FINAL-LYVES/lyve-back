@@ -19,8 +19,10 @@ const io = new Server(server, {
 
 const userController = require('./controllers/user');
 
-const { verifyJsonWebToken, generateRandomString} = require('./helpers');
-const { CREATE_ROOM_EVENT, DELETE_ROOM_EVENT, JOIN_ROOM_EVENT, LEAVE_ROOM_EVENT} = require("./constants/socket");
+const { verifyJsonWebToken, generateRandomString, checkUrlIsValid} = require('./helpers');
+const { CREATE_ROOM_EVENT, DELETE_ROOM_EVENT, JOIN_ROOM_EVENT, LEAVE_ROOM_EVENT, GET_ROOMS_EVENT, NEW_MESSAGE_EVENT,
+    ADD_SONG_EVENT
+} = require("./constants/socket");
 const {MAX_ROOM_USERS_LIMIT, MUSIC_TYPES} = require("./constants/app");
 
 app.use(cors());
@@ -51,7 +53,6 @@ const getRoomsByActivity = () => {
 
 // each socket must have a valid JWT
 io.use((socket, next) => {
-    console.log(socket.handshake.auth);
     const token = socket.handshake.auth.token;
     if (!token) {
         return next(new Error('Forbidden access.'));
@@ -144,6 +145,41 @@ io.on('connection', (socket) => {
 
         io.socketsLeave(roomId); // disconnect everyone from this room
         delete rooms[roomId];
+    });
+
+    socket.on(GET_ROOMS_EVENT, () => {
+        socket.emit(GET_ROOMS_EVENT, getRoomsByActivity());
+    });
+
+    // MESSAGES
+    socket.on(NEW_MESSAGE_EVENT, (roomId, message) => {
+        if (!rooms[roomId]) return socket.emit(NEW_MESSAGE_EVENT, { message: 'Room doesn\'t exist.' });
+        if (!rooms[roomId].userList.includes(socket.user._id)) return socket.emit(NEW_MESSAGE_EVENT, { message: 'You are not in this room.' });
+
+        // TODO: prevent flood
+        io.to(roomId).emit(NEW_MESSAGE_EVENT, message);
+    });
+
+    // SONGS
+    socket.on(ADD_SONG_EVENT, (roomId, url) => {
+        if (!rooms[roomId]) return socket.emit(ADD_SONG_EVENT, { message: 'Room doesn\'t exist.' });
+
+        // check user is in room
+        if (!rooms[roomId].userList.includes(socket.user._id)) return socket.emit(ADD_SONG_EVENT, { message: 'You are not in this room.' });
+
+        // check user has not a pending song in this room
+        const userSongIndex = rooms[roomId].songList.findIndex(song => song.userId === socket.user._id);
+        if (userSongIndex !== -1) return socket.emit(ADD_SONG_EVENT, { message: 'You already have a pending song in this room.' });
+
+        // check URL is valid
+        if (!checkUrlIsValid(url)) return socket.emit(ADD_SONG_EVENT, { message: 'Invalid URL.' });
+
+        // TODO patryk: call YouTube API to get video duration duration and name
+
+        rooms[roomId].songList.push({ url, userId: socket.user._id });
+
+        // TODO: add data from API in return socket
+        io.to(roomId).emit(ADD_SONG_EVENT, { url });
     });
 
     socket.on('join room', (roomId) => {
