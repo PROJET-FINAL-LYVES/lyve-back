@@ -48,7 +48,6 @@ mongoose.connect(process.env.DATABASE_URI, { useNewUrlParser: true, useUnifiedTo
 // ROUTES
 app.post('/login', userController.login);
 app.post('/register', userController.register);
-app.get('/logout', userController.logout);
 
 const hosts = {};
 const rooms = {};
