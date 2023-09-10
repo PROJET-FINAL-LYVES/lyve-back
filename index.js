@@ -19,11 +19,18 @@ const io = new Server(server, {
 
 const userController = require('./controllers/user');
 
-const { verifyJsonWebToken, generateRandomString, checkUrlIsValid} = require('./helpers');
-const { CREATE_ROOM_EVENT, DELETE_ROOM_EVENT, JOIN_ROOM_EVENT, LEAVE_ROOM_EVENT, GET_ROOMS_EVENT, NEW_MESSAGE_EVENT,
-    ADD_SONG_EVENT
-} = require("./constants/socket");
-const {MAX_ROOM_USERS_LIMIT, MUSIC_TYPES} = require("./constants/app");
+const { verifyJsonWebToken, generateRandomString, checkUrlIsValid } = require('./helpers');
+const { MAX_ROOM_USERS_LIMIT, MUSIC_TYPES } = require('./constants/app');
+const {
+    CREATE_ROOM_EVENT,
+    DELETE_ROOM_EVENT,
+    JOIN_ROOM_EVENT,
+    LEAVE_ROOM_EVENT,
+    GET_ROOMS_EVENT,
+    NEW_MESSAGE_EVENT,
+    ADD_SONG_EVENT,
+    REMOVE_SONG_EVENT
+} = require('./constants/socket');
 
 app.use(cors());
 app.use(express.json());
@@ -37,6 +44,7 @@ mongoose.connect(process.env.DATABASE_URI, { useNewUrlParser: true, useUnifiedTo
         console.error('Database connection error');
     });
 
+// ROUTES
 app.post('/login', userController.login);
 app.post('/register', userController.register);
 app.get('/logout', userController.logout);
@@ -180,6 +188,22 @@ io.on('connection', (socket) => {
 
         // TODO: add data from API in return socket
         io.to(roomId).emit(ADD_SONG_EVENT, { url });
+    });
+
+    socket.on(REMOVE_SONG_EVENT, (roomId, songIndex) => {
+        if (!rooms[roomId]) return socket.emit(ADD_SONG_EVENT, { message: 'Room doesn\'t exist.' });
+
+        const song = rooms[roomId].songList[songIndex];
+        if (!song) return socket.emit(REMOVE_SONG_EVENT, { message: 'Song doesn\'t exist.' });
+
+        // TODO: check this again
+        if (song.userId !== socket.user._id && socket.user.role !== 'admin') {
+            return socket.emit(REMOVE_SONG_EVENT, { message: 'You are not allowed to remove this song.' });
+        }
+
+        // remove song from array
+        rooms[roomId].songList.splice(songIndex, 1);
+        io.to(roomId).emit(REMOVE_SONG_EVENT, song);
     });
 
     socket.on('join room', (roomId) => {

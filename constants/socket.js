@@ -14,6 +14,7 @@ const NEW_MESSAGE_EVENT = 'message';
 
 // songs
 const ADD_SONG_EVENT = 'add song';
+const REMOVE_SONG_EVENT = 'remove song v2'; // TODO: update to normal event afterwards
 
 module.exports = {
     START_VIDEO_EVENT,
@@ -26,6 +27,7 @@ module.exports = {
     GET_ROOMS_EVENT,
 
     ADD_SONG_EVENT,
+    REMOVE_SONG_EVENT,
 
     NEW_MESSAGE_EVENT
 };
