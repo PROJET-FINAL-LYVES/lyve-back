@@ -3,7 +3,6 @@ const RoomService = require('../services/room');
 class RoomController {
     static create = async (req, res)=>  {
         const { name, type, max_people_inside } = req.body;
-
         const room = await RoomService.findRoomByName(name);
         if (room) {
             return res.status(409).json({ message: 'Room name already taken' });
