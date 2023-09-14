@@ -21,7 +21,6 @@ const createJsonWebToken = user => {
 const verifyJsonWebToken = token => {
     try {
         const tokenData = jwt.verify(token, process.env.JWT_SECRET);
-        console.log(tokenData);
         return { success: true, tokenData };
     } catch (e) {
         if (e instanceof jwt.JsonWebTokenError) {
