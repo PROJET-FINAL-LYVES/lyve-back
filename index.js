@@ -53,9 +53,7 @@ mongoose.connect(process.env.DATABASE_URI, { useNewUrlParser: true, useUnifiedTo
 app.post('/login', userController.login);
 app.post('/register', userController.register);
 
-const hosts = {};
 const rooms = {};
-const playlists = {};
 const playerStates = {};
 const usersLastMessageDate = {};
 
@@ -78,26 +76,32 @@ io.use((socket, next) => {
     socket.user = tokenData;
     next();
 });
+const userIdToSocketId = {}; // Mapping between user IDs and socket IDs
+
 
 io.on('connection', (socket) => {
+    userIdToSocketId[socket.user._id] = socket.id;
 
     // ROOMS EVENTS
     // ***********************************************************
+
     socket.on('fetch_rooms', () => {
         socket.emit('initial_rooms', Object.values(rooms));
     });
 
-    socket.on('create room', ({ name, userId, type, maxUsers, musicType }) => {
+    socket.on('create room', ({ name, userId, userName, type, maxUsers, musicType }) => {
         // const isOwnerOfRoom = Object.values(rooms).find(room => room.hostId === socket.user._id);
         // if (isOwnerOfRoom) return socket.emit('create room', { message: 'Already owner of a room.' });
         if (maxUsers > MAX_ROOM_USERS_LIMIT) return socket.emit('create room', { message: 'Max users value too high.' });
         if (MUSIC_TYPES.includes(type)) return socket.emit('create room', { message: 'Invalid music type.' });
 
         const roomId = generateRandomString();
+
         rooms[roomId] = {
             roomId: roomId,
             name,
             hostId: userId,
+            hostName: userName,
             userList: [],
             songList: [],
             type,
@@ -106,11 +110,12 @@ io.on('connection', (socket) => {
             // timeout,
             creationDate: Date.now()
         };
+        io.emit('update room', roomId);
         return socket.emit('create room', rooms[roomId].roomId);
     });
 
     socket.on('join room v2', (roomId, userId) => {
-        if (!rooms[roomId]) return socket.emit('join room v2', { message: 'Room doesn\'t exist.' });
+        if (!rooms[roomId]) return socket.emit('join room v2', { message: 'Cette room n\'éxiste pas.' });
         if (rooms[roomId].userList.length >= rooms[roomId].maxUsers) return socket.emit('join room v2', { message: 'Room is full.' });
 
         if (!rooms[roomId].userList.some(user => user.id === socket.user._id)) {
@@ -125,8 +130,8 @@ io.on('connection', (socket) => {
         }
 
         if (socket.user._id !== rooms[roomId].hostId) {
-            console.log('get player state from host', rooms[roomId].hostId, socket.user._id)
-            socket.to(rooms[roomId].hostId).emit('get player state', socket.user._id);
+            const hostSocketId = userIdToSocketId[rooms[roomId].hostId];
+            socket.to(hostSocketId).emit('get player state', socket.user._id);
         }
 
         if (rooms[roomId].songList && rooms[roomId].songList.length > 0) {
@@ -136,14 +141,14 @@ io.on('connection', (socket) => {
 
         io.to(roomId).emit('update playlist', rooms[roomId].songList || [])
         socket.emit('host status', socket.user._id === rooms[roomId].hostId);
-        const usernames = rooms[roomId].userList.map(user => ({ id: user._id, username: user.username }));
-        io.to(roomId).emit('room users', usernames);
+        const userList = rooms[roomId].userList.map(user => ({ id: user.id, username: user.username }));
+        io.to(roomId).emit('room users', userList);
 
         return socket.emit('join room v2', roomId);
     });
 
     socket.on('leave room v2', roomId => {
-        if (!rooms[roomId]) return socket.emit('leave room v2', { message: 'Room doesn\'t exist.' });
+        if (!rooms[roomId]) return socket.emit('leave room v2', { message: 'Cette room n\'éxiste pas.' });
         const userIndex = rooms[roomId].userList.findIndex(user => user.id === socket.user._id);
         if (userIndex !== -1) {
             rooms[roomId].userList.splice(userIndex, 1);
@@ -153,8 +158,8 @@ io.on('connection', (socket) => {
             delete rooms[roomId];
             io.to(roomId).emit('room users', []);
         } else {
-            const usernames = rooms[roomId].userList.map(user => ({ id: user.id, username: user.username }));
-            io.to(roomId).emit('room users', usernames);
+            const userList = rooms[roomId].userList.map(user => ({ id: user.id, username: user.username }));
+            io.to(roomId).emit('room users', userList);
         }
 
         socket.leave(roomId);
@@ -185,19 +190,22 @@ io.on('connection', (socket) => {
 
     socket.on('chat message', (roomId, message, username) => {
         if (!rooms[roomId]) {
-            return socket.emit('chat message error', 'Room doesn\'t exist.');
+            return socket.emit('chat message error', 'Cette room n\'éxiste pas.');
         }
         if (!rooms[roomId].userList.some(user => user.id === socket.user._id)) {
-            return socket.emit('chat message error', 'You are not in this room.');
+            return socket.emit('chat message error', 'Vous n\'êtes pas dans cette room.');
         }
 
         if (message.length > MAX_MESSAGE_LENGTH) {
-            return socket.emit('chat message error', 'Message too long.');
+            return socket.emit('chat message error', 'Message trop long.');
+        }
+        if (message.length < 1) {
+            return socket.emit('chat message error', 'Message trop court.');
         }
 
         const userLastMessageDate = usersLastMessageDate[socket.user._id];
         if (userLastMessageDate + MESSAGE_INTERVAL >= Date.now()) {
-            return socket.emit('chat message error', 'Too fast.');
+            return socket.emit('chat message error', 'Trop rapide.');
         }
 
         usersLastMessageDate[socket.user._id] = Date.now();
@@ -209,10 +217,9 @@ io.on('connection', (socket) => {
     // SONGS EVENTS
     // ***********************************************************
     socket.on('add video v2', async (roomId, url) => {
-        console.log('add video v2', roomId, url);
         if (!rooms[roomId]) {
-            console.log('Room doesn\'t exist.')
-            return socket.emit('add video v2', { message: 'Room doesn\'t exist.' });
+            console.log('Cette room n\'éxiste pas.')
+            return socket.emit('add video v2', { message: 'Cette room n\'éxiste pas.' });
         }
 
         // check user is in room
@@ -222,10 +229,10 @@ io.on('connection', (socket) => {
         }
 
         // check user has not a pending song in this room
-        // const userSongIndex = rooms[roomId].songList.findIndex(song => song.userId === socket.user._id);
-        // if (userSongIndex !== -1) {
-        //     return socket.emit('add video v2', { message: 'You already have a pending song in this room.' });
-        // } 
+        const userSongIndex = rooms[roomId].songList.findIndex(song => song.userId === socket.user._id);
+        if (userSongIndex > 3) {
+            return socket.emit('add video v2', { message: 'Vous avez trop de vidéos en attente.' });
+        } 
 
         // check URL is valid
         const videoId = getVideoIdFromUrl(url);
@@ -251,12 +258,11 @@ io.on('connection', (socket) => {
 
         const song = rooms[roomId].songList[songIndex];
         if (!song) {
-            return socket.emit('remove song v2', { message: 'Song doesn\'t exist.' });
+            return socket.emit('remove song v2', { message: 'Cette vidéo n\'éxiste pas.' });
         }
 
-        console.log(song.userId, socket.user._id, rooms[roomId].hostId, userId)
         if (!song.userId === userId || !userId === rooms[roomId].hostId) {
-            return socket.emit('remove song v2', { message: 'You are not allowed to remove this song.' });
+            return socket.emit('remove song v2', { message: 'Vous n\'avez pas les droits pour supprimer cette vidéo.' });
         }
         if (rooms[roomId].songList && songIndex < rooms[roomId].songList.length) {
             rooms[roomId].songList.splice(songIndex, 1);
@@ -268,15 +274,8 @@ io.on('connection', (socket) => {
     // ***********************************************************
 
     socket.on('send player state', (newUserId, currentTime, playerState) => {
-        console.log('send player state', newUserId, currentTime, playerState)
-        socket.to(newUserId).emit('edit client player state', currentTime, playerState);
-    });
-
-    socket.on('get room users', (roomId) => {
-        const room = rooms[roomId];
-        const roomUsers = room ? room.userList.map(user => user.username) : [];
-        socket.emit('room users', roomUsers);
-
+        const newUserSOcketId = userIdToSocketId[newUserId];
+        socket.to(newUserSOcketId).emit('edit client player state', currentTime, playerState);
     });
 
     socket.on('get video url', (roomId) => {
@@ -291,7 +290,6 @@ io.on('connection', (socket) => {
     });
 
     socket.on('video action', (roomId, action) => {
-        console.log('video action', roomId, action)
         const currentTime = action.time;
         if (socket.user._id === rooms[roomId].hostId) {
             if (action.type === 'play' || action.type === 'pause') {
@@ -303,7 +301,6 @@ io.on('connection', (socket) => {
     });
 
     socket.on('video start', (roomId) => {
-        console.log('video start', roomId)
         rooms[roomId].playerState = 'playing';
     });
 
@@ -336,10 +333,25 @@ io.on('connection', (socket) => {
 
     // USER EVENTS
     // ***********************************************************
+    socket.on('change host', (newHostId, roomId) => {
+        if (rooms[roomId].hostId === socket.user._id
+            && rooms[roomId].userList.some(user => user.id === newHostId)
+            && newHostId !== socket.user._id) {
+            rooms[roomId].hostId = newHostId;
+            rooms[roomId].userList.forEach(user => {
+                const socketId = userIdToSocketId[user.id];
+                if (socketId) {
+                    io.to(socketId).emit('host status', user.id === rooms[roomId].hostId);
+                }
+            });
+        }
+    });
+
     socket.on('error', (error) => {
         console.log('Socket Error: ', error);
     });
     socket.on('disconnect', () => {
+        delete userIdToSocketId[socket.user._id];
         console.log('Client disconnected', socket.user._id);
     });
 
