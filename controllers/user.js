@@ -18,11 +18,6 @@ class UserController {
         return res.json({ success: true, user: user.toDisplay() });
     }
 
-    static async logout(req, res) {
-        req.session.destroy();
-        res.redirect('/login');
-    }
-
     static async register(req, res) {
         const {
             username,

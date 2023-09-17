@@ -18,27 +18,48 @@ const createJsonWebToken = user => {
     });
 };
 
-const verifyJsonWebToken = (req, res, next) => {
-    const authorizationToken = req.headers.authorization;
-    if (!authorizationToken) {
-        return res.status(403).json({ message: 'Forbidden access' });
-    }
-
+const verifyJsonWebToken = token => {
     try {
-        req.user = jwt.verify(authorizationToken, process.env.JWT_SECRET);
-        console.log(req.user);
-        next();
+        const tokenData = jwt.verify(token, process.env.JWT_SECRET);
+        return { success: true, tokenData };
     } catch (e) {
         if (e instanceof jwt.JsonWebTokenError) {
-            return res.status(401).json({ message: 'Unauthorized access' });
+            return { error: 'Unauthorized access.' };
         }
 
-        return res.status(400).json({ message: 'Invalid token' });
+        return { error: 'Invalid token.' };
     }
+};
+
+const generateRandomString = (length = 10) => {
+    const characters = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
+    return [...Array(length)].reduce(a => a + characters[~~(Math.random() * characters.length)], '');
+};
+
+const getVideoIdFromUrl = url => {
+    let referenceUrl;
+
+    try {
+        referenceUrl = new URL(url);
+    } catch (error) {
+        return false;
+    }
+
+    if (
+        ['http:', 'https:'].includes(referenceUrl.protocol) &&
+        ['www.youtube.com', 'youtube.com'].includes(referenceUrl.hostname) &&
+        referenceUrl.searchParams.get('v').length === 11
+    ) {
+        return referenceUrl.searchParams.get('v');
+    }
+
+    return false;
 };
 
 module.exports = {
     handleErrorMessages,
     createJsonWebToken,
-    verifyJsonWebToken
+    verifyJsonWebToken,
+    generateRandomString,
+    getVideoIdFromUrl
 }
