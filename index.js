@@ -347,6 +347,27 @@ io.on('connection', (socket) => {
         }
     });
 
+    socket.on('kick user', (userIdToKick, roomId) => {
+        if (!rooms[roomId]) return;
+
+        if (rooms[roomId].hostId !== socket.user._id) {
+            return;
+        }
+
+        const userIndex = rooms[roomId].userList.findIndex(user => user.id === userIdToKick);
+        if (userIndex !== -1) {
+            rooms[roomId].userList.splice(userIndex, 1);
+
+            const userList = rooms[roomId].userList.map(user => ({ id: user.id, username: user.username }));
+            io.to(roomId).emit('room users', userList);
+
+            const kickedUserSocketId = userIdToSocketId[userIdToKick];
+            if (kickedUserSocketId) {
+                io.to(kickedUserSocketId).emit('kicked from room', roomId);
+            }
+        }
+    });
+
     socket.on('error', (error) => {
         console.log('Socket Error: ', error);
     });
